@@ -1,0 +1,12 @@
+# Generated run artifacts
+PRE/
+Result/
+
+# MATLAB temporary and autosave files
+*.asv
+*.m~
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
