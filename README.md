@@ -52,7 +52,7 @@ NetCDF helper functions, M_Map, color maps, and mixed-layer helper routines.
 ## Quick Start
 
 1. Open `ml_parameter.m`.
-2. Set `Case_nam` and `Data_dir`.
+2. Set `Case_name` and `Data_dir`.
 3. Confirm the ROMS files exist in `Data_dir`.
 4. Run in MATLAB from the project root:
 
@@ -75,8 +75,10 @@ All normal run settings live in `ml_parameter.m`.
 
 ### Case And Paths
 
-- `Case_nam`: case name used for intermediate and final output folders.
+- `Case_name`: case name used for intermediate and final output folders.
 - `Data_dir`: ROMS input directory.
+- `Init_file`: ROMS initial/restart file used as the reference state for
+  first-day budget closure.
 - `INT_dir`: daily mixed-layer output directory.
 - `CUM_dir`: cumulative budget output directory.
 - `OUT_dir`: final averaged result directory.
@@ -84,9 +86,9 @@ All normal run settings live in `ml_parameter.m`.
 Default output paths are:
 
 ```text
-PRE/INT/<Case_nam>/YYYY-MM-DD.mat
-PRE/CUM/<Case_nam>/YYYY-MM-DD.mat
-Result/<Case_nam>.mat
+PRE/INT/<Case_name>/YYYY-MM-DD.mat
+PRE/CUM/<Case_name>/YYYY-MM-DD.mat
+Result/<Case_name>.mat
 ```
 
 ### Time Range
@@ -112,13 +114,16 @@ example, daily files are expected to follow the padded sequence
 
 ### Diagnostics And Optional Terms
 
-- `IF_DIAGNOSTICS`: read ROMS diagnostic terms and compute budget components.
+- `IF_DIAGNOSTICS`: total switch to read ROMS diagnostic terms and compute
+  temperature and salinity budget components.
 - `ENTRAIN_OPTION`: entrainment diagnosis option.
 - `HCM_DIA_OUTPUT`: enable heat-content model diagnostic output terms.
 - `IF_HCM_DIA_RHR`: include/remove shortwave radiative heating contribution.
 - `IF_HCM_DIA_SHR`: include/remove surface heat flux contribution.
-- `IF_SALINITY`: include salinity budget variables.
+- `IF_SALINITY`: include mixed-layer salinity and, when `IF_DIAGNOSTICS = 1`,
+  salinity budget variables.
 - `IF_DENSITY`: include mixed-layer density output.
+- `IF_N2`: calculate and save water-column `N2max` and `N2depth`.
 
 When diagnostics are enabled, the daily script reads fields such as
 `temp_rate`, `temp_hadv`, `temp_vadv`, `temp_hdiff`, and `temp_vdiff` from
@@ -133,17 +138,19 @@ environment, then runs these scripts in order:
    - Reads ROMS daily files.
    - Diagnoses mixed-layer depth.
    - Computes mixed-layer averages and daily budget terms.
-   - Saves daily files to `PRE/INT/<Case_nam>/`.
+   - Saves daily files to `PRE/INT/<Case_name>/`.
 
 2. `code/ml_budget_accumulate.m`
    - Reads daily mixed-layer files.
-   - Integrates budget terms from `Time_beg` through each day.
-   - Saves cumulative files to `PRE/CUM/<Case_nam>/`.
+   - Integrates budget terms from the ROMS initial state through each day.
+     The first day uses its daily diagnostic rate; later days use trapezoidal
+     integration of physical rates.
+   - Saves cumulative files to `PRE/CUM/<Case_name>/`.
 
 3. `code/ml_budget_Taverage.m`
    - Reads cumulative files.
-   - Computes time-averaged fields.
-   - Saves the final file to `Result/<Case_nam>.mat`.
+   - Computes time averages of cumulative budget contributions.
+   - Saves the final file to `Result/<Case_name>.mat`.
 
 ## Output Variables
 
@@ -152,13 +159,27 @@ Common fields include:
 
 - Grid and metadata: `Time`, `lon`, `lat`, `mask`, `h`, `zeta`
 - Mixed-layer structure: `MLD`, `num_ml`
+- Water-column stratification: `N2max` (maximum buoyancy frequency squared,
+  s^-2) and `N2depth` (positive-downward depth of that maximum, m). These are
+  calculated from adjacent ROMS density levels using
+  `N2 = (g / rho0) * d(rho) / d(depth)`, where `rho0` is read with
+  `ncread(fileA,'rho0')` from each ROMS average file. When `IF_N2 = 1`,
+  `rho` and `rho0` are required even if
+  `IF_DENSITY = 0`; the final output contains the time average of each daily
+  field.
 - Mixed-layer means: `temp_ml`, `salt_ml`, `rho_ml`
 - Temperature budget terms:
   `temp_tend_ml`, `temp_rate_ml`, `temp_entr_ml`, `temp_hadv_ml`,
   `temp_vadv_ml`, `temp_hdiff_ml`, `temp_vdiff_ml`, `temp_nudge_ml`
-- Salinity budget terms, when `IF_SALINITY = 1`:
+- Salinity budget terms, when `IF_DIAGNOSTICS = 1` and `IF_SALINITY = 1`:
   `salt_tend_ml`, `salt_rate_ml`, `salt_entr_ml`, `salt_hadv_ml`,
   `salt_vadv_ml`, `salt_hdiff_ml`, `salt_vdiff_ml`, `salt_nudge_ml`
+
+In `PRE/CUM/`, budget variables are cumulative contributions relative to the
+state diagnosed from `Init_file`. In the final result, their time averages
+therefore quantify each process's contribution to the mean mixed-layer
+temperature or salinity change. `temp_residual_ml` and `salt_residual_ml`
+are the corresponding closure residuals.
 
 For `ENTRAIN_OPTION = 2`, daily intermediate files may also include additional
 entrainment diagnostics such as Kim et al. style estimates and residual
@@ -189,7 +210,8 @@ and MATLAB NetCDF support.
 - If diagnostics are unavailable, set `IF_DIAGNOSTICS = 0` or provide the
   matching `dia_*.nc` files.
 - If salinity or density variables are absent from the ROMS output, set
-  `IF_SALINITY = 0` or `IF_DENSITY = 0` as appropriate.
+  `IF_SALINITY = 0` or `IF_DENSITY = 0` as appropriate. If `rho` or scalar
+  `rho0` is unavailable, also set `IF_N2 = 0`.
 
 ## Maintenance Notes
 

@@ -4,7 +4,7 @@ ml_parameter
 
 Data_dir=CUM_dir;
 Save_dir=OUT_dir;
-fileS=[Save_dir,'/',Case_nam,'.mat'];
+fileS=[Save_dir,'/',Case_name,'.mat'];
 if ~exist(Save_dir,'dir')
 mkdir(Save_dir)
 end
@@ -30,6 +30,10 @@ for T=T_beg:T_frq:T_end
             h      =load_data(fileN,'h');
             zeta   =load_data(fileN,'zeta');
             MLD    =load_data(fileN,'MLD');
+            if IF_N2
+            N2max  =load_data(fileN,'N2max');
+            N2depth=load_data(fileN,'N2depth');
+            end
             num_ml =load_data(fileN,'num_ml');
             temp_ml=load_data(fileN,'temp_ml');
             if IF_SALINITY
@@ -73,6 +77,10 @@ for T=T_beg:T_frq:T_end
             Time   =Time   +T;
             zeta   =zeta   +load_data(fileN,'zeta');
             MLD    =MLD    +load_data(fileN,'MLD');
+            if IF_N2
+            N2max  =N2max  +load_data(fileN,'N2max');
+            N2depth=N2depth+load_data(fileN,'N2depth');
+            end
             num_ml =num_ml +load_data(fileN,'num_ml');
             temp_ml=temp_ml+load_data(fileN,'temp_ml');
             if IF_SALINITY
@@ -121,6 +129,10 @@ if num>0
     Time   =Time   /num;
     zeta   =zeta   /num;
     MLD    =MLD    /num;
+    if IF_N2
+    N2max  =N2max  /num;
+    N2depth=N2depth/num;
+    end
     num_ml =num_ml /num;
     temp_ml=temp_ml/num;
     if IF_SALINITY
@@ -148,6 +160,7 @@ if num>0
     temp_shr_ml=temp_shr_ml/num;
     end
     end
+    temp_residual_ml = temp_ml-temp_init_ml-temp_rate_ml-temp_entr_ml;
     if IF_SALINITY
     salt_init_ml =salt_init_ml /num;
     salt_tend_ml =salt_tend_ml /num;
@@ -158,8 +171,12 @@ if num>0
     salt_hdiff_ml=salt_hdiff_ml/num;
     salt_vdiff_ml=salt_vdiff_ml/num;
     salt_nudge_ml=salt_nudge_ml/num;
+    salt_residual_ml = salt_ml-salt_init_ml-salt_rate_ml-salt_entr_ml;
     end
     end
-    save(fileS,'T_beg','T_end','T_frq','Time','lon','lat','mask','h','zeta','MLD','*_ml')
+    output_variables = {'T_beg','T_end','T_frq','Time','lon','lat','mask','h','zeta','MLD','*_ml'};
+    if IF_N2
+    output_variables = [output_variables,{'N2max','N2depth'}];
+    end
+    save(fileS,output_variables{:})
 end
-

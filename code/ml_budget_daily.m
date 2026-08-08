@@ -57,8 +57,31 @@ for T=T_beg:T_frq:T_end
     if IF_SALINITY
     salt  = ncload_3D(fileA,'salt');
     end
-    if IF_DENSITY
+    % N2 is diagnosed from the full density profile, independently of the
+    % optional mixed-layer density output switch.
+    if IF_DENSITY || IF_N2
     rho   = ncload_3D(fileA,'rho');
+    end
+    if IF_N2
+    rho0  = ncread(fileA,'rho0');
+    end
+    if IF_DIAGNOSTICS && T==T_beg
+    if ~exist(Init_file,'file')
+        error('ML_Budget:MissingInitialFile', ...
+              'Init_file does not exist: %s', Init_file);
+    end
+    zeta_init = ncload_2D(Init_file,'zeta');
+    h_init    = ncload_2D(Init_file,'h');
+    s_rho_init     = ncread(Init_file,'s_rho');
+    theta_s_init   = ncread(Init_file,'theta_s');
+    theta_b_init   = ncread(Init_file,'theta_b');
+    hc_init        = ncread(Init_file,'hc');
+    vtransform_init=ncread(Init_file,'Vtransform');
+    MLDV_init = ncload_3D(Init_file,MLD_variable);
+    temp_init = ncload_3D(Init_file,'temp');
+    if IF_SALINITY
+    salt_init = ncload_3D(Init_file,'salt');
+    end
     end
 
     if IF_DIAGNOSTICS
@@ -102,21 +125,56 @@ for T=T_beg:T_frq:T_end
         Ze = zeta(i,j);
         Zb = zlevs(hh,Ze,theta_s,theta_b,hc,length(s_rho),'w',vtransform);
         Zb = Zb-Ze;
-        z  = abs((Zb(1:end-1)+Zb(2:end))/2);
+        % ROMS z is positive upward. Convert rho-point locations to
+        % positive-downward depth explicitly, rather than folding signs
+        % with abs().
+        depth = -0.5*(Zb(1:end-1)+Zb(2:end));
         dz = abs(diff(Zb));
+        if IF_DIAGNOSTICS && T==T_beg
+        hh_init = h_init(i,j);
+        Ze_init = zeta_init(i,j);
+        Zb_init = zlevs(hh_init,Ze_init,theta_s_init,theta_b_init,hc_init,...
+                         length(s_rho_init),'w',vtransform_init);
+        Zb_init = Zb_init-Ze_init;
+        depth_init = -0.5*(Zb_init(1:end-1)+Zb_init(2:end));
+        Te_init = squeeze(MLDV_init(:,i,j));
+        if MLD_method==1
+        ML_init = abs(find_MLD_deltT(Te_init,depth_init,MLD_threshold));
+        elseif MLD_method==2
+        ML_init = abs(find_MLD_gradT(Te_init,depth_init,MLD_threshold));
+        end
+        if isnan(ML_init) && hh_init<=MLD_nanlimit
+        ML_init = max(depth_init);
+        end
+        if ~isnan(ML_init)
+        weights_init = ml_layer_weights(Zb_init,ML_init);
+        temp_init_ml(i,j) = ml_depth_average(temp_init(:,i,j),weights_init);
+        if IF_SALINITY
+        salt_init_ml(i,j) = ml_depth_average(salt_init(:,i,j),weights_init);
+        end
+        else
+        temp_init_ml(i,j) = NaN;
+        if IF_SALINITY
+        salt_init_ml(i,j) = NaN;
+        end
+        end
+        end
+        if IF_N2
+        [N2max(i,j),N2depth(i,j)] = n2max_water_column(rho(:,i,j),depth,rho0);
+        end
         if IF_DIAGNOSTICS
-         z_3D(:,i,j)= z;
+         z_3D(:,i,j)= depth;
         dz_3D(:,i,j)=dz;
        z_w_3D(:,i,j)=abs(Zb);
         end
         Te = squeeze(MLDV(:,i,j));
         if MLD_method==1
-        ML = abs(find_MLD_deltT(Te,z,MLD_threshold));
+        ML = abs(find_MLD_deltT(Te,depth,MLD_threshold));
         elseif MLD_method==2
-        ML = abs(find_MLD_gradT(Te,z,MLD_threshold));
+        ML = abs(find_MLD_gradT(Te,depth,MLD_threshold));
         end
         if isnan(ML)&&hh<=MLD_nanlimit
-        ML = max(abs(z));
+        ML = max(depth);
         end
         if ~isnan(ML)
             weightsML=ml_layer_weights(Zb,ML);
@@ -192,7 +250,17 @@ for T=T_beg:T_frq:T_end
             end
         end
     else
+        if IF_N2
+        N2max(i,j)=NaN;
+        N2depth(i,j)=NaN;
+        end
         MLD(i,j)=NaN;
+        if IF_DIAGNOSTICS && T==T_beg
+        temp_init_ml(i,j)=NaN;
+        if IF_SALINITY
+        salt_init_ml(i,j)=NaN;
+        end
+        end
         num_ml(i,j)=NaN;
         temp_ml(i,j)=NaN;
         if IF_SALINITY
@@ -237,11 +305,11 @@ for T=T_beg:T_frq:T_end
     % Use interval differencing and trapezoidal rate averaging so the
     % accumulated tendency closes with the mixed-layer temperature change.
     if ~has_previous
-        temp_entr_ml=0*temp_rate_ml;
-        temp_tend_ml=0*temp_rate_ml;
+        temp_tend_ml=(temp_ml-temp_init_ml)/DT;
+        temp_entr_ml=temp_tend_ml-temp_rate_ml;
         if IF_SALINITY
-        salt_entr_ml=0*salt_rate_ml;
-        salt_tend_ml=0*salt_rate_ml;
+        salt_tend_ml=(salt_ml-salt_init_ml)/DT;
+        salt_entr_ml=salt_tend_ml-salt_rate_ml;
         end
     else
         temp_tend_ml=(temp_ml-load_data(filePR,'temp_ml'))/DT;
@@ -258,17 +326,17 @@ for T=T_beg:T_frq:T_end
     % Store the finite-volume Kim estimate, then use the exact interval
     % tendency to diagnose conservative budget entrainment residuals.
     if ~has_previous
-        temp_entr_ml=0*temp_rate_ml;
-        temp_entr_int_ml=0*temp_rate_ml;
+        temp_tend_ml=(temp_ml-temp_init_ml)/DT;
+        temp_entr_ml=temp_tend_ml-temp_rate_ml;
+        temp_entr_int_ml=temp_entr_ml;
         temp_entr_kim_ml=0*temp_rate_ml;
         temp_entr_corr_ml=0*temp_rate_ml;
-        temp_tend_ml=0*temp_rate_ml;
         if IF_SALINITY
-        salt_entr_ml=0*salt_rate_ml;
-        salt_entr_int_ml=0*salt_rate_ml;
+        salt_tend_ml=(salt_ml-salt_init_ml)/DT;
+        salt_entr_ml=salt_tend_ml-salt_rate_ml;
+        salt_entr_int_ml=salt_entr_ml;
         salt_entr_kim_ml=0*salt_rate_ml;
         salt_entr_corr_ml=0*salt_rate_ml;
-        salt_tend_ml=0*salt_rate_ml;
         end
     else
         h_1   = load_data(filePR,'MLD');    % previous MLD
@@ -278,7 +346,7 @@ for T=T_beg:T_frq:T_end
         temp_prev_ml = load_data(filePR,'temp_ml');
         temp_rate_int_ml = 0.5*(temp_rate_ml+load_data(filePR,'temp_rate_ml'));
         temp_tend_ml = (temp_ml-temp_prev_ml)/DT;
-        temp_entr_ml = temp_tend_ml-temp_rate_ml;
+        temp_entr_ml = temp_tend_ml-temp_rate_int_ml;
         temp_entr_int_ml = temp_tend_ml-temp_rate_int_ml;
 
         temp  = load_data(filePR,'temp_3D');   % at t-1
@@ -288,7 +356,7 @@ for T=T_beg:T_frq:T_end
         salt_prev_ml = load_data(filePR,'salt_ml');
         salt_rate_int_ml = 0.5*(salt_rate_ml+load_data(filePR,'salt_rate_ml'));
         salt_tend_ml = (salt_ml-salt_prev_ml)/DT;
-        salt_entr_ml = salt_tend_ml-salt_rate_ml;
+        salt_entr_ml = salt_tend_ml-salt_rate_int_ml;
         salt_entr_int_ml = salt_tend_ml-salt_rate_int_ml;
 
         salt  = load_data(filePR,'salt_3D');
@@ -338,7 +406,11 @@ for T=T_beg:T_frq:T_end
 
     end
 
-    save(fileS,'Time','lon','lat','mask','h','zeta','MLD','*_ml','*_3D')
-    clear MLD temp* salt* rho* *_3D loc_* mask*
+    output_variables = {'Time','lon','lat','mask','h','zeta','MLD','*_ml','*_3D'};
+    if IF_N2
+    output_variables = [output_variables,{'N2max','N2depth'}];
+    end
+    save(fileS,output_variables{:})
+    clear MLD N2max N2depth temp* salt* rho* *_3D loc_* mask*
 
 end

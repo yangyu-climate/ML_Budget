@@ -7,7 +7,7 @@ function validate_ml_parameter()
 
     ml_parameter
 
-    requiredText = {'Case_nam','Data_dir','INT_dir','CUM_dir','OUT_dir', ...
+    requiredText = {'Case_name','Data_dir','Init_file','INT_dir','CUM_dir','OUT_dir', ...
                     'MLD_variable'};
     for ii = 1:numel(requiredText)
         name = requiredText{ii};
@@ -53,6 +53,7 @@ function validate_ml_parameter()
     validateFlag(IF_HCM_DIA_SHR,'IF_HCM_DIA_SHR');
     validateFlag(IF_SALINITY,'IF_SALINITY');
     validateFlag(IF_DENSITY,'IF_DENSITY');
+    validateFlag(IF_N2,'IF_N2');
 
     if ~isnumeric(ENTRAIN_OPTION) || ~isscalar(ENTRAIN_OPTION) ...
             || ~ismember(ENTRAIN_OPTION,[1 2])
@@ -63,6 +64,11 @@ function validate_ml_parameter()
     if ~exist(Data_dir,'dir')
         error('ML_Budget:MissingInputDirectory', ...
               'Data_dir does not exist: %s', Data_dir);
+    end
+
+    if IF_DIAGNOSTICS && ~exist(Init_file,'file')
+        error('ML_Budget:MissingInitialFile', ...
+              'Init_file does not exist: %s', Init_file);
     end
 
     if exist('ncread','file') ~= 2
