@@ -49,11 +49,15 @@ Generated run artifacts are written under `PRE/` and `Result/`.
   `IF_DIAGNOSTICS = 1`
 
 `Init_file` must use the same static ROMS grid and vertical-coordinate
-configuration as the average files. It must contain `zeta`, the configured
-`MLD_variable`, and `temp`; it must also contain `salt` when
-`IF_SALINITY = 1`.
+configuration as the average files. It must contain `zeta` and `temp`, and
+also `salt` when `IF_SALINITY = 1`. When `MLD_variable = 'rho'`, an initial
+`rho` variable is used when present. If it is absent, the code calculates the
+ROMS `NONLIN_EOS` in-situ density anomaly from initial `temp`, `salt`, and the
+ROMS rho-point depth; initial `salt` is therefore required for this fallback.
+This fallback must only be used for a ROMS configuration compiled with
+`NONLIN_EOS`; a `LINEAR_EOS` configuration should supply its model `rho`.
 
-The `rho` field is required whenever `MLD_variable = 'rho'`,
+Average files require `rho` whenever `MLD_variable = 'rho'`,
 `IF_DENSITY = 1`, or `IF_N2 = 1`. When `IF_N2 = 1`, each average file must
 also contain scalar `rho0`.
 
@@ -144,7 +148,7 @@ When diagnostics are enabled, the daily script reads fields such as
 ## Workflow
 
 `Run.m` adds the support directories to the MATLAB path, starts the toolbox
-environment, then runs these scripts in order:
+environment, validates `ml_parameter.m`, then runs these scripts in order:
 
 1. `code/ml_budget_daily.m`
    - Reads ROMS daily files.
@@ -207,8 +211,9 @@ primary `*_entr_ml` fields.
 
 ## Pre-Run Check
 
-The helper function `app/Tool_box/validate_ml_parameter.m` can be used to catch
-common configuration problems before a long run:
+`Run.m` calls `app/Tool_box/validate_ml_parameter.m` automatically before any
+output is written. It can also be run manually to check a configuration before
+submitting a job:
 
 ```matlab
 addpath(fullfile(pwd,'app'))
@@ -228,10 +233,11 @@ and MATLAB NetCDF support.
   produce the expected `avg_*.nc` and `dia_*.nc` sequence numbers.
 - If diagnostics are unavailable, set `IF_DIAGNOSTICS = 0` or provide the
   matching `dia_*.nc` files.
-- If salinity or density variables are absent from the ROMS output, set
-  `IF_SALINITY = 0` or `IF_DENSITY = 0` as appropriate. If `rho` or scalar
-  `rho0` is unavailable, also set `IF_N2 = 0`. If `rho` is unavailable and
-  `MLD_variable = 'rho'`, set `MLD_variable = 'temp'` as well.
+- If salinity or density variables are absent from the ROMS average output,
+  set `IF_SALINITY = 0` or `IF_DENSITY = 0` as appropriate. If average-file
+  `rho` or scalar `rho0` is unavailable, also set `IF_N2 = 0`. An initial
+  file may omit `rho` when `MLD_variable = 'rho'`, provided it contains
+  `temp` and `salt` for the ROMS nonlinear-EOS fallback.
 
 ## Maintenance Notes
 

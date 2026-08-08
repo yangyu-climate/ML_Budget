@@ -7,6 +7,10 @@ start
 %--------------------------------------------------------------------------
 addpath(code_dir)
 
+% Fail before producing any intermediate output when the run configuration
+% is incomplete or internally inconsistent.
+validate_ml_parameter
+
 ml_budget_daily
 ml_budget_accumulate
 ml_budget_Taverage

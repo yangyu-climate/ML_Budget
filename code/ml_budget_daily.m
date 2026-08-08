@@ -72,10 +72,28 @@ for T=T_beg:T_frq:T_end
               'Init_file does not exist: %s', Init_file);
     end
     zeta_init = ncload_2D(Init_file,'zeta');
-    MLDV_init = ncload_3D(Init_file,MLD_variable);
     temp_init = ncload_3D(Init_file,'temp');
-    if IF_SALINITY
+    calculate_rho_init = strcmpi(MLD_variable,'rho') && ...
+                         ~nc_variable_exists(Init_file,MLD_variable);
+    if IF_SALINITY || calculate_rho_init
+    if ~nc_variable_exists(Init_file,'salt')
+        if calculate_rho_init
+            error('ML_Budget:MissingInitialSalinity', ...
+                  ['Initial rho fallback requires salt in Init_file: %s. ', ...
+                   'Provide rho, provide salt, or choose another MLD_variable.'], ...
+                  Init_file);
+        else
+            error('ML_Budget:MissingInitialSalinity', ...
+                  'IF_SALINITY = 1 requires salt in Init_file: %s.',Init_file);
+        end
+    end
     salt_init = ncload_3D(Init_file,'salt');
+    end
+    if calculate_rho_init
+    MLDV_init = [];
+    disp(['rho is absent from ',Init_file,'; calculating it with ROMS NONLIN_EOS.'])
+    else
+    MLDV_init = ncload_3D(Init_file,MLD_variable);
     end
     end
 
@@ -125,9 +143,15 @@ for T=T_beg:T_frq:T_end
         dz = abs(diff(Zb));
         if IF_DIAGNOSTICS && T==T_beg
         Ze_init = zeta_init(i,j);
-        Zb_init = zlevs(hh,Ze_init,theta_s,theta_b,hc,length(s_rho),'w',vtransform);
-        Zb_init = Zb_init-Ze_init;
+        Zb_init_abs = zlevs(hh,Ze_init,theta_s,theta_b,hc,length(s_rho),'w',vtransform);
+        Zb_init = Zb_init_abs-Ze_init;
+        if calculate_rho_init
+        z_r_init = 0.5*(Zb_init_abs(1:end-1)+Zb_init_abs(2:end));
+        Te_init = roms_rho_eos(squeeze(temp_init(:,i,j)), ...
+                               squeeze(salt_init(:,i,j)),z_r_init);
+        else
         Te_init = squeeze(MLDV_init(:,i,j));
+        end
         [ML_init,weights_init] = ml_diagnose_weights(Te_init,Zb_init,hh,...
                             MLD_method,MLD_threshold,MLD_nanlimit);
         if ~isnan(ML_init)
