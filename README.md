@@ -45,6 +45,17 @@ Generated run artifacts are written under `PRE/` and `Result/`.
 - ROMS daily average files named like `avg_00001.nc`
 - ROMS daily diagnostic files named like `dia_00001.nc` when
   `IF_DIAGNOSTICS = 1`
+- A ROMS initial/restart file (`Init_file`, default `Ini.nc`) when
+  `IF_DIAGNOSTICS = 1`
+
+`Init_file` must use the same static ROMS grid and vertical-coordinate
+configuration as the average files. It must contain `zeta`, the configured
+`MLD_variable`, and `temp`; it must also contain `salt` when
+`IF_SALINITY = 1`.
+
+The `rho` field is required whenever `MLD_variable = 'rho'`,
+`IF_DENSITY = 1`, or `IF_N2 = 1`. When `IF_N2 = 1`, each average file must
+also contain scalar `rho0`.
 
 The bundled `app/` directory contains supporting MATLAB utilities, including
 NetCDF helper functions, M_Map, color maps, and mixed-layer helper routines.
@@ -52,8 +63,8 @@ NetCDF helper functions, M_Map, color maps, and mixed-layer helper routines.
 ## Quick Start
 
 1. Open `ml_parameter.m`.
-2. Set `Case_name` and `Data_dir`.
-3. Confirm the ROMS files exist in `Data_dir`.
+2. Set `Case_name`, `Data_dir`, and `Init_file`.
+3. Confirm the configured ROMS average, diagnostic, and initial files exist.
 4. Run in MATLAB from the project root:
 
    ```matlab
@@ -78,7 +89,8 @@ All normal run settings live in `ml_parameter.m`.
 - `Case_name`: case name used for intermediate and final output folders.
 - `Data_dir`: ROMS input directory.
 - `Init_file`: ROMS initial/restart file used as the reference state for
-  first-day budget closure.
+  first-day budget closure. It must share the static grid and vertical
+  coordinate configuration of the average files.
 - `INT_dir`: daily mixed-layer output directory.
 - `CUM_dir`: cumulative budget output directory.
 - `OUT_dir`: final averaged result directory.
@@ -181,6 +193,13 @@ therefore quantify each process's contribution to the mean mixed-layer
 temperature or salinity change. `temp_residual_ml` and `salt_residual_ml`
 are the corresponding closure residuals.
 
+Daily diagnostic budget fields are rates in the units supplied by ROMS. The
+corresponding `PRE/CUM/` and final budget fields are time-integrated
+contributions, with temperature or salinity units rather than rate units.
+`N2depth` in the final result is the time average of the daily depths at
+which `N2max` occurs; it is not the depth of the maximum of a time-mean N2
+profile.
+
 For `ENTRAIN_OPTION = 2`, daily intermediate files may also include additional
 entrainment diagnostics such as Kim et al. style estimates and residual
 correction terms. The cumulative and final-average scripts propagate the
@@ -211,7 +230,8 @@ and MATLAB NetCDF support.
   matching `dia_*.nc` files.
 - If salinity or density variables are absent from the ROMS output, set
   `IF_SALINITY = 0` or `IF_DENSITY = 0` as appropriate. If `rho` or scalar
-  `rho0` is unavailable, also set `IF_N2 = 0`.
+  `rho0` is unavailable, also set `IF_N2 = 0`. If `rho` is unavailable and
+  `MLD_variable = 'rho'`, set `MLD_variable = 'temp'` as well.
 
 ## Maintenance Notes
 

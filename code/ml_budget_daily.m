@@ -65,18 +65,13 @@ for T=T_beg:T_frq:T_end
     if IF_N2
     rho0  = ncread(fileA,'rho0');
     end
+
     if IF_DIAGNOSTICS && T==T_beg
     if ~exist(Init_file,'file')
         error('ML_Budget:MissingInitialFile', ...
               'Init_file does not exist: %s', Init_file);
     end
     zeta_init = ncload_2D(Init_file,'zeta');
-    h_init    = ncload_2D(Init_file,'h');
-    s_rho_init     = ncread(Init_file,'s_rho');
-    theta_s_init   = ncread(Init_file,'theta_s');
-    theta_b_init   = ncread(Init_file,'theta_b');
-    hc_init        = ncread(Init_file,'hc');
-    vtransform_init=ncread(Init_file,'Vtransform');
     MLDV_init = ncload_3D(Init_file,MLD_variable);
     temp_init = ncload_3D(Init_file,'temp');
     if IF_SALINITY
@@ -125,27 +120,16 @@ for T=T_beg:T_frq:T_end
         Ze = zeta(i,j);
         Zb = zlevs(hh,Ze,theta_s,theta_b,hc,length(s_rho),'w',vtransform);
         Zb = Zb-Ze;
-        % ROMS z is positive upward. Convert rho-point locations to
-        % positive-downward depth explicitly, rather than folding signs
-        % with abs().
-        depth = -0.5*(Zb(1:end-1)+Zb(2:end));
+        [ML,weightsML,depth] = ml_diagnose_weights(MLDV(:,i,j),Zb,hh,...
+                            MLD_method,MLD_threshold,MLD_nanlimit);
         dz = abs(diff(Zb));
         if IF_DIAGNOSTICS && T==T_beg
-        hh_init = h_init(i,j);
         Ze_init = zeta_init(i,j);
-        Zb_init = zlevs(hh_init,Ze_init,theta_s_init,theta_b_init,hc_init,...
-                         length(s_rho_init),'w',vtransform_init);
+        Zb_init = zlevs(hh,Ze_init,theta_s,theta_b,hc,length(s_rho),'w',vtransform);
         Zb_init = Zb_init-Ze_init;
-        depth_init = -0.5*(Zb_init(1:end-1)+Zb_init(2:end));
         Te_init = squeeze(MLDV_init(:,i,j));
-        if MLD_method==1
-        ML_init = abs(find_MLD_deltT(Te_init,depth_init,MLD_threshold));
-        elseif MLD_method==2
-        ML_init = abs(find_MLD_gradT(Te_init,depth_init,MLD_threshold));
-        end
-        if isnan(ML_init) && hh_init<=MLD_nanlimit
-        ML_init = max(depth_init);
-        end
+        [ML_init,weights_init] = ml_diagnose_weights(Te_init,Zb_init,hh,...
+                            MLD_method,MLD_threshold,MLD_nanlimit);
         if ~isnan(ML_init)
         weights_init = ml_layer_weights(Zb_init,ML_init);
         temp_init_ml(i,j) = ml_depth_average(temp_init(:,i,j),weights_init);
@@ -167,17 +151,7 @@ for T=T_beg:T_frq:T_end
         dz_3D(:,i,j)=dz;
        z_w_3D(:,i,j)=abs(Zb);
         end
-        Te = squeeze(MLDV(:,i,j));
-        if MLD_method==1
-        ML = abs(find_MLD_deltT(Te,depth,MLD_threshold));
-        elseif MLD_method==2
-        ML = abs(find_MLD_gradT(Te,depth,MLD_threshold));
-        end
-        if isnan(ML)&&hh<=MLD_nanlimit
-        ML = max(depth);
-        end
         if ~isnan(ML)
-            weightsML=ml_layer_weights(Zb,ML);
             weightsPL=max(dz(:)-weightsML(:),0);
             MLD(i,j)=ML;
             num_ml(i,j)=sum(weightsML>0);
