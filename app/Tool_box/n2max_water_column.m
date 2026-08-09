@@ -29,7 +29,12 @@ if ~any(valid_pair)
 end
 
 N2 = g/rho0 * diff(rho)./dz;
-pair_index = find(valid_pair);
+% The strongest stratification is the largest *stable* buoyancy frequency.
+% A water column with no N2>0 has no stable pycnocline to locate.
+pair_index = find(valid_pair & N2 > 0);
+if isempty(pair_index)
+    return
+end
 [N2max,local_index] = max(N2(pair_index));
 index = pair_index(local_index);
 N2depth = 0.5*(depth(index)+depth(index+1));

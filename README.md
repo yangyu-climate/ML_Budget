@@ -182,7 +182,8 @@ Common fields include:
   `ncread(fileA,'rho0')` from each ROMS average file. When `IF_N2 = 1`,
   `rho` and `rho0` are required even if
   `IF_DENSITY = 0`; the final output contains the time average of each daily
-  field.
+  field. `N2max` identifies the strongest stable stratification (pycnocline);
+  if a water column has no positive N2, both fields are `NaN`.
 - Mixed-layer means: `temp_ml`, `salt_ml`, `rho_ml`
 - Temperature budget terms:
   `temp_tend_ml`, `temp_rate_ml`, `temp_entr_ml`, `temp_hadv_ml`,
