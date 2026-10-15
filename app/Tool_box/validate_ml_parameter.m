@@ -42,6 +42,12 @@ function validate_ml_parameter()
               'MLD_threshold must be a positive scalar.');
     end
 
+    if ~isnumeric(MLD_reference_depth) || ~isscalar(MLD_reference_depth) ...
+            || ~isfinite(MLD_reference_depth) || MLD_reference_depth < 0
+        error('ML_Budget:InvalidMLDReferenceDepth', ...
+              'MLD_reference_depth must be a finite non-negative scalar.');
+    end
+
     if ~isnumeric(MLD_nanlimit) || ~isscalar(MLD_nanlimit) || MLD_nanlimit < 0
         error('ML_Budget:InvalidMLDNanLimit', ...
               'MLD_nanlimit must be a non-negative scalar.');

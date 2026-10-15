@@ -139,7 +139,8 @@ for T=T_beg:T_frq:T_end
         Zb = zlevs(hh,Ze,theta_s,theta_b,hc,length(s_rho),'w',vtransform);
         Zb = Zb-Ze;
         [ML,weightsML,depth] = ml_diagnose_weights(MLDV(:,i,j),Zb,hh,...
-                            MLD_method,MLD_threshold,MLD_nanlimit);
+                            MLD_method,MLD_threshold,MLD_nanlimit,MLD_variable,...
+                            MLD_reference_depth);
         dz = abs(diff(Zb));
         if IF_DIAGNOSTICS && T==T_beg
         Ze_init = zeta_init(i,j);
@@ -153,7 +154,8 @@ for T=T_beg:T_frq:T_end
         Te_init = squeeze(MLDV_init(:,i,j));
         end
         [ML_init,weights_init] = ml_diagnose_weights(Te_init,Zb_init,hh,...
-                            MLD_method,MLD_threshold,MLD_nanlimit);
+                            MLD_method,MLD_threshold,MLD_nanlimit,MLD_variable,...
+                            MLD_reference_depth);
         if ~isnan(ML_init)
         weights_init = ml_layer_weights(Zb_init,ML_init);
         temp_init_ml(i,j) = ml_depth_average(temp_init(:,i,j),weights_init);

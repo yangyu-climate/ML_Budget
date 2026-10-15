@@ -1,12 +1,20 @@
-function [ML,weights,depth] = ml_diagnose_weights(profile,z_w,h,method,threshold,nanlimit)
+function [ML,weights,depth] = ml_diagnose_weights(profile,z_w,h,method,threshold,nanlimit,variable,reference_depth)
 %ML_DIAGNOSE_WEIGHTS Diagnose MLD and layer weights for one water column.
 %   z_w uses ROMS positive-upward coordinates. depth and ML are returned as
 %   positive-downward meters. weights is the thickness inside [0,ML].
 
+if nargin < 8 || isempty(reference_depth)
+    reference_depth = 0;
+end
+
 depth = -0.5*(z_w(1:end-1)+z_w(2:end));
 
 if method==1
-    ML = find_MLD_deltT(profile,depth,threshold);
+    if nargin >= 7 && strcmpi(variable,'rho')
+        ML = find_MLD_deltT(profile,depth,threshold,'signed',reference_depth);
+    else
+        ML = find_MLD_deltT(profile,depth,threshold,'absolute',reference_depth);
+    end
 elseif method==2
     ML = find_MLD_gradT(profile,depth,threshold);
 else

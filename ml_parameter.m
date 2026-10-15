@@ -15,6 +15,7 @@ Time_frq=1;
 MLD_variable  ='rho';
 MLD_method    = 1;   %1:deltT; 2:gradT
 MLD_threshold = 0.03;
+MLD_reference_depth = 5;  % reference depth (m); use 0 for the surface layer
 MLD_nanlimit  = 100;
 
 % Budget diagnostics (total switch for temperature and salinity budgets)
